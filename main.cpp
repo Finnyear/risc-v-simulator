@@ -256,7 +256,7 @@ void execute(){
 			// puts("ADDI");
 			if(rd == 10 && rs1 == 0 && imm == 255){
 				flag = 1;
-				cout << "ans ==" << (reg[10] & 255) << endl;
+				cout << (reg[10] & 255) << endl;
 			}
 			else reg[rd] = reg[rs1] + imm;
 		}
