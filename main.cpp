@@ -43,15 +43,16 @@ struct pipeline_reg{
 	// format_set ins_format;
 	unsigned int ins_code, pc, add;
 	unsigned int rs1_value, rs2_value, rd_value;
-	int imm, rs1, rs2, rd, funct3, funct7, opcode, predictor, times;
+	int imm, rs1, rs2, rd, funct3, funct7, opcode, predictor;
 	pipeline_reg(unsigned int _ins_code = 0) : ins_code(_ins_code) {
 		ins_type = ERROR;
 		pc = add = rs1_value = rs2_value = rd_value = 0;
-		imm = rs1 = rs2 = rd = funct3 = funct7 = opcode = predictor = times = 0;
+		imm = rs1 = rs2 = rd = funct3 = funct7 = opcode = predictor = 0;
 	}
 }IF_ID, ID_EX, EX_MEM, MEM_WB;
 bool IF_busy = 1, ID_busy, EX_busy, MEM_busy, WB_busy;
-int MEM_times;
+int MEM_times, EX_rd, MEM_rd;
+unsigned int EX_rd_value, MEM_rd_value;
 
 void instruction_fetch(){
 	if(ID_busy) return ;
@@ -71,7 +72,14 @@ void instruction_fetch(){
 void instruction_decode(){
 	if(EX_busy || (!ID_busy)) return ;
 	// puts("-----ID-Begin-----");
-	if(IF_ID.ins_code == 0xFF00513) return ;
+	// printf("ID :: %s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[IF_ID.ins_type].c_str(), IF_ID.pc, IF_ID.rs1, IF_ID.rs1_value, IF_ID.rs2, IF_ID.rs2_value, IF_ID.rd, IF_ID.rd_value);
+
+	if(IF_ID.ins_code == 0xFF00513){
+		// printf("??? %s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[IF_ID.ins_type].c_str(), IF_ID.pc, IF_ID.rs1, IF_ID.rs1_value, IF_ID.rs2, IF_ID.rs2_value, IF_ID.rd, IF_ID.rd_value);
+		//puts("??????????");
+		return ;
+	}
+	
 	ID_EX = IF_ID;
 	int opcode, funct3, funct7;
 	opcode = ID_EX.ins_code & 127;
@@ -240,8 +248,35 @@ void instruction_decode(){
 			break;
 		default : break;
 	}
+	// printf("%08x  %d  %d  %d  %d\n", ID_EX.pc, MEM_busy, EX_MEM.rd, ID_EX.rs1, ID_EX.rs2);
+	if(MEM_busy && EX_MEM.rd && (EX_MEM.rd == ID_EX.rs1 || EX_MEM.rd == ID_EX.rs2)){
+		// printf("pc == %08x\n", ID_EX.pc);
+		return ;
+	}
+	// printf("pc == %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ID_EX.pc, ID_EX.rs1, ID_EX.rs1_value, 
+	// 	ID_EX.rs2, ID_EX.rs2_value, MEM_rd, MEM_rd_value);
 	ID_EX.rs1_value = reg[ID_EX.rs1];
 	ID_EX.rs2_value = reg[ID_EX.rs2];
+	if(ID_EX.rs1 == MEM_rd){
+		if(ID_EX.rs1)ID_EX.rs1_value = MEM_rd_value;
+		// else printf("1 :: %08x\n", ID_EX.pc);
+	}
+	if(ID_EX.rs2 == MEM_rd){
+		if(ID_EX.rs2)ID_EX.rs2_value = MEM_rd_value;
+		// else printf("2 :: %08x\n", ID_EX.pc);
+	}
+	MEM_rd = 0;
+	/*if(ID_EX.rs1 == EX_rd){
+		if(ID_EX.rs1)ID_EX.rs1_value = EX_rd_value;
+		// else printf("3 :: %08x\n", ID_EX.pc);
+	}
+	if(ID_EX.rs2 == EX_rd){
+		if(ID_EX.rs2)ID_EX.rs2_value = EX_rd_value;
+		// else printf("4 :: %08x\n", ID_EX.pc);
+	}
+	EX_rd = 0;*/
+	//ID_rs1_forwarding = ID_rs2_forwarding = 0;
+	// printf("reg[%d] = %d  reg[%d] = %d\n", ID_EX.rs1, ID_EX.rs1_value, ID_EX.rs2, ID_EX.rs2_value);
 	switch(ID_EX.ins_type){
 		case JAL: pc = ID_EX.pc + ID_EX.imm; break;
 		case JALR: pc = (ID_EX.imm + ID_EX.rs1_value) & fro[1]; break;
@@ -255,6 +290,7 @@ void instruction_decode(){
 	// puts("-----ID-End-----");
 	ID_busy = 0;
 	EX_busy = 1;
+	// printf("ID :: %08x  %08x  pc = %d\n", ID_EX.pc, ID_EX.ins_code, pc);
 }
 bool cmp(instruction_set ins, unsigned int rs1_value, unsigned int rs2_value){
 	switch(ins){
@@ -316,6 +352,9 @@ void execute(){
 	EX_busy = 0;
 	MEM_busy = 1;
 	MEM_times = 0;
+	EX_rd = EX_MEM.rd;
+	EX_rd_value = EX_MEM.rd_value;
+	// printf("EX :: pc = %08x  reg[%d] = %d\n", EX_MEM.pc, EX_rd, EX_rd_value);
 }
 void memory_access(){
 	if(WB_busy || (!MEM_busy)) return ;
@@ -357,6 +396,14 @@ void memory_access(){
 			break;
 	}
 	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[MEM_WB.ins_type].c_str(), MEM_WB.pc, MEM_WB.rs1, MEM_WB.rs1_value, MEM_WB.rs2, MEM_WB.rs2_value, MEM_WB.rd, MEM_WB.rd_value);
+	/*if(ID_busy){
+		printf("%08x, %08x, %d  %d  %d\n", MEM_WB.pc, IF_ID.pc, IF_ID.rs1, IF_ID.rs2, MEM_WB.rd);
+		if(IF_ID.rs1 && IF_ID.rs1 == MEM_WB.rd) {IF_ID.rs1_value = MEM_WB.rd_value; ID_rs1_forwarding = 1;}
+		if(IF_ID.rs2 && IF_ID.rs2 == MEM_WB.rd) {IF_ID.rs2_value = MEM_WB.rd_value; ID_rs2_forwarding = 1;}
+	}*/
+	MEM_rd = MEM_WB.rd;
+	MEM_rd_value = MEM_WB.rd_value;
+	// printf("MEM :: pc = %08x  reg[%d] = %d\n", MEM_WB.pc, MEM_rd, MEM_rd_value);
 	if(EX_busy){
 		if(ID_EX.rs1 && ID_EX.rs1 == MEM_WB.rd) ID_EX.rs1_value = MEM_WB.rd_value;
 		if(ID_EX.rs2 && ID_EX.rs2 == MEM_WB.rd) ID_EX.rs2_value = MEM_WB.rd_value;
@@ -366,7 +413,14 @@ void memory_access(){
 void write_back(){
 	if(!WB_busy) return ;
 	// puts("-----WB-Begin-----");
-	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[MEM_WB.ins_type].c_str(), MEM_WB.pc, MEM_WB.rs1, MEM_WB.rs1_value, MEM_WB.rs2, MEM_WB.rs2_value, MEM_WB.rd, MEM_WB.rd_value);
+	// printf("%s  pc = %08x  imm = %d  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[MEM_WB.ins_type].c_str(), MEM_WB.pc, MEM_WB.imm, MEM_WB.rs1, MEM_WB.rs1_value, MEM_WB.rs2, MEM_WB.rs2_value, MEM_WB.rd, MEM_WB.rd_value);
+	/*if(ID_busy){
+		printf("%08x, %08x, %d  %d  %d\n", MEM_WB.pc, IF_ID.pc, IF_ID.rs1, IF_ID.rs2, MEM_WB.rd);
+		if(IF_ID.rs1 && IF_ID.rs1 == MEM_WB.rd) {IF_ID.rs1_value = MEM_WB.rd_value; ID_rs1_forwarding = 1;}
+		if(IF_ID.rs2 && IF_ID.rs2 == MEM_WB.rd) {IF_ID.rs2_value = MEM_WB.rd_value; ID_rs2_forwarding = 1;}
+	}*/
+	// WB_rd = MEM_WB.rd;
+	// WB_rd_value = MEM_WB.rd_value;
 	if(EX_busy){
 		if(ID_EX.rs1 && ID_EX.rs1 == MEM_WB.rd) ID_EX.rs1_value = MEM_WB.rd_value;
 		if(ID_EX.rs2 && ID_EX.rs2 == MEM_WB.rd) ID_EX.rs2_value = MEM_WB.rd_value;
@@ -383,7 +437,7 @@ void write_back(){
 }
 void work(){
 	pc = 0;
-	while(IF_ID.ins_code != 0xFF00513 || WB_busy || MEM_busy || EX_busy){
+	while(IF_ID.ins_code != 0xFF00513 || WB_busy || MEM_busy || EX_busy || (!ID_busy)){
 		// puts("-----Pipe-Begin-----");
 		write_back();
 		memory_access();
@@ -393,7 +447,7 @@ void work(){
 		// puts("-----Pipe-End-----");
 	}
 	cout << (reg[10] & 255) << endl;
-	//printf("%0.8f\n", (double)pre_right/pre_tot);
+	// printf("%0.8f\n", (double)pre_right/pre_tot);
 }
 int main(){
 	//freopen("b.data", "r", stdin);
