@@ -2,371 +2,402 @@
 using namespace std;
 
 unsigned int reg[32], pc;
-
-unsigned int incode;
-
-unsigned int rs1, rs2, rd, funct3, funct7, opcode;
-
-int imm;
-
-enum format_set {R, I, S, B, U, J};
-
-format_set format;
-
-stringstream sstream;
-
 unsigned int mem[6666666];
-
-bool flag = 0;
+int pre[256], pre_tot, pre_right;
 
 int fro[32];
+stringstream sstream;
 void init(){
 	for(int i = 0; i < 32; i++)
 		fro[i] = -1 << i;
-	
 	string str, tmp;
 	while(cin >> str){
-		// cout << "str = " << str << endl; 
 		if(str[0] == '@'){
 			sstream << str.substr(1);
 			sstream >> hex >> uppercase >> pc;
 			sstream.clear();
-			// cout << "pc == " << pc << endl;
 		}
 		else{
 			sstream << str;
 			sstream >> hex >> uppercase >> mem[pc++];
 			sstream.clear();
-			// cout << "pc == " << pc << endl;
-			// cout << "x == " << hex << uppercase << mem[pc - 1] << endl;
 		}
 	}
 }
 
-void instruction_fetch(){
-	incode = 0;
-	for(int i = 0; i < 4; i++)
-		incode |= (mem[pc + i] << (i * 8));
-	// printf("incode == %08x\n", incode);
-}
-void decode_R(){
-	format = R;
-	rd = (incode >> 7) & 31;
-	funct3 = (incode >> 12) & 7;
-	rs1 = (incode >> 15) & 31;
-	rs2 = (incode >> 20) & 31;
-	funct7 = (incode >> 25);
-	// printf("R ::: rd = %d  rs1 = %d  rs2 = %d  funct3 = %d  funct7 = %d\n", rd, rs1, rs2, funct3, funct7);
-}
-void print_R(){
-	// printf("rd = [%d : %d]  rs1 = [%d : %d]  rs2 = [%d : %d]\n", rd, reg[rd], rs1, reg[rs1], rs2, reg[rs2]);
-}
-void decode_I(){
-	format = I;
-	rd = (incode >> 7) & 31;
-	funct3 = (incode >> 12) & 7;
-	rs1 = (incode >> 15) & 31;
-	imm = (incode >> 20);
-	if(incode >> 31) imm |= fro[11];
-	// printf("I ::: rd = %d  rs1 = %d  imm = %d  funct3 = %d\n", rd, rs1, imm, funct3);
-}
-void print_I(){
-	// printf("rd = [%d : %d]  rs1 = [%d : %d]\n", rd, reg[rd], rs1, reg[rs1]);
-}
+enum instruction_set {LUI = 0, AUIPC, JAL, JALR, 
+					  BEQ, BNE, BLT, BGE, BLTU, BGEU, 
+					  LB, LH, LW, LBU, LHU, SB, SH, SW, 
+					  ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI, 
+					  ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, 
+					  ERROR};
+string ss[55] = {"LUI", "AUIPC", "JAL", "JALR",
+				 "BEQ", "BNE", "BLT", "BGE", "BLTU", "BGEU", 
+				 "LB", "LH", "LW", "LBU", "LHU", "SB", "SH", "SW", 
+				 "ADDI", "SLTI", "SLTIU", "XORI", "ORI", "ANDI", "SLLI", "SRLI", "SRAI", 
+				 "ADD", "SUB", "SLL", "SLT", "SLTU", "XOR", "SRL", "SRA", "OR", "AND", 
+				 "ERROR"};
 
-void decode_S(){
-	format = S;
-	funct3 = (incode >> 12) & 7;
-	rs1 = (incode >> 15) & 31;
-	rs2 = (incode >> 20) & 31;
-	imm = ((incode >> 7) & 31) | (((incode >> 25) & 63) << 5);
-	if(incode >> 31) imm |= fro[11];
-	// printf("S ::: rs1 = %d  rs2 = %d  imm = %d  funct3 = %d\n", rs1, rs2, imm, funct3);
-}
-void print_S(){
-	// printf("rs1 = [%d : %d]  rs2 = [%d : %d]\n", rs1, reg[rs1], rs2, reg[rs2]);
-}
-void decode_B(){
-	format = B;
-	funct3 = (incode >> 12) & 7;
-	rs1 = (incode >> 15) & 31;
-	rs2 = (incode >> 20) & 31;
-	imm = (((incode >> 8) & 15) << 1) | (((incode >> 25) & 63) << 5) | (((incode >> 7) & 1) << 11);
-	if(incode >> 31) imm |= fro[12];
-	// printf("B ::: rs1 = %d  rs2 = %d  imm = %d  funct3 = %d\n", rs1, rs2, imm, funct3);
-}
-void print_B(){
-	// printf("rs1 = [%d : %d]  rs2 = [%d : %d]\n", rs1, reg[rs1], rs2, reg[rs2]);
-}
-void decode_U(){
-	format = U;
-	rd = (incode >> 7) & 31;
-	imm = incode & fro[12];
-	// printf("U ::: rd = %d  imm = %d\n", rd, imm);
-}
-void print_U(){
-	// printf("rd = [%d : %d]\n", rd, reg[rd]);
-}
-void decode_J(){
-	format = J;
-	rd = (incode >> 7) & 31;
-	imm = (((incode >> 21) & 1023) << 1) | (((incode >> 20) & 1) << 11) | (((incode >> 12) & 255) << 12);
-	if(incode >> 31) imm |= fro[20];
-	// printf("J ::: rd = %d  imm = %d\n", rd, imm);
-}
-void print_J(){
-	// printf("rd = [%d : %d]\n", rd, reg[rd]);
+struct pipeline_reg{
+	instruction_set ins_type;
+	// format_set ins_format;
+	unsigned int ins_code, pc, add;
+	unsigned int rs1_value, rs2_value, rd_value;
+	int imm, rs1, rs2, rd, funct3, funct7, opcode, predictor, times;
+	pipeline_reg(unsigned int _ins_code = 0) : ins_code(_ins_code) {
+		ins_type = ERROR;
+		pc = add = rs1_value = rs2_value = rd_value = 0;
+		imm = rs1 = rs2 = rd = funct3 = funct7 = opcode = predictor = times = 0;
+	}
+}IF_ID, ID_EX, EX_MEM, MEM_WB;
+bool IF_busy = 1, ID_busy, EX_busy, MEM_busy, WB_busy;
+int MEM_times;
+
+void instruction_fetch(){
+	if(ID_busy) return ;
+	// puts("-----IF-Begin-----");
+	IF_ID = pipeline_reg();
+	unsigned int ins_code = (mem[pc]) | 
+							(mem[pc + 1] << 8) | 
+							(mem[pc + 2] << 16) | 
+							(mem[pc + 3] << 24) ;
+	IF_ID.ins_code = ins_code;
+	IF_ID.pc = pc;
+	pc += 4;
+	ID_busy = 1;
+	// puts("-----IF-End-----");
 }
 
 void instruction_decode(){
-	opcode = incode & 127;
-	if(opcode == 55) decode_U();
-	else if(opcode == 23) decode_U();
-	else if(opcode == 111) decode_J();
-	else if(opcode == 103) decode_I();
-	else if(opcode == 99) decode_B();
-	else if(opcode == 3) decode_I();
-	else if(opcode == 35) decode_S();
-	else if(opcode == 19) decode_I();
-	else if(opcode == 51) decode_R();
+	if(EX_busy || (!ID_busy)) return ;
+	// puts("-----ID-Begin-----");
+	if(IF_ID.ins_code == 0xFF00513) return ;
+	ID_EX = IF_ID;
+	int opcode, funct3, funct7;
+	opcode = ID_EX.ins_code & 127;
+	switch(opcode){
+		case 0x37:
+			ID_EX.ins_type = LUI;
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			ID_EX.imm = ID_EX.ins_code & fro[12];
+			break;
+		case 0x17:
+			ID_EX.ins_type = AUIPC;
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			ID_EX.imm = ID_EX.ins_code & fro[12];
+			break;
+		case 0x6F:
+			ID_EX.ins_type = JAL;
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			ID_EX.imm = (((ID_EX.ins_code >> 21) & 1023) << 1) | (((ID_EX.ins_code >> 20) & 1) << 11) | (((ID_EX.ins_code >> 12) & 255) << 12);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[20];
+			break;
+		case 0x67:
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.imm = (ID_EX.ins_code >> 20);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[11];
+			switch(funct3){
+				case 0: ID_EX.ins_type = JALR; break;
+				default : break;
+			}
+			break;
+		case 0x63:
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.rs2 = (ID_EX.ins_code >> 20) & 31;
+			ID_EX.imm = (((ID_EX.ins_code >> 8) & 15) << 1) | (((ID_EX.ins_code >> 25) & 63) << 5) | (((ID_EX.ins_code >> 7) & 1) << 11);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[12];
+			switch(funct3){
+				case 0: ID_EX.ins_type = BEQ; break;
+				case 1: ID_EX.ins_type = BNE; break;
+				case 4: ID_EX.ins_type = BLT; break;
+				case 5: ID_EX.ins_type = BGE; break;
+				case 6: ID_EX.ins_type = BLTU; break;
+				case 7: ID_EX.ins_type = BGEU; break;
+				default : break;
+			}
+			break;
+		case 0x3:
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.imm = (ID_EX.ins_code >> 20);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[11];
+			switch(funct3){
+				case 0: ID_EX.ins_type = LB; break;
+				case 1: ID_EX.ins_type = LH; break;
+				case 2: ID_EX.ins_type = LW; break;
+				case 4: ID_EX.ins_type = LBU; break;
+				case 5: ID_EX.ins_type = LHU; break;
+				default : break;
+			}
+			break;
+		case 0x23:
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.rs2 = (ID_EX.ins_code >> 20) & 31;
+			ID_EX.imm = ((ID_EX.ins_code >> 7) & 31) | (((ID_EX.ins_code >> 25) & 63) << 5);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[11];
+			switch(funct3){
+				case 0: ID_EX.ins_type = SB; break;
+				case 1: ID_EX.ins_type = SH; break;
+				case 2: ID_EX.ins_type = SW; break;
+				default : break;
+			}
+			break;
+		case 0x13:
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.imm = (ID_EX.ins_code >> 20);
+			if(ID_EX.ins_code >> 31) ID_EX.imm |= fro[11];
+			switch(funct3){
+				case 0: ID_EX.ins_type = ADDI; break;
+				case 2: ID_EX.ins_type = SLTI; break;
+				case 3: ID_EX.ins_type = SLTIU; break;
+				case 4: ID_EX.ins_type = XORI; break;
+				case 6: ID_EX.ins_type = ORI; break;
+				case 7: ID_EX.ins_type = ANDI; break;
+				case 1: 
+					ID_EX.imm &= 31;
+					funct7 = (ID_EX.ins_code >> 25);
+					switch(funct7){
+						case 0x0: ID_EX.ins_type = SLLI; break;
+						default : break;
+					}
+					break;
+				case 5:
+					ID_EX.imm &= 31;
+					funct7 = (ID_EX.ins_code >> 25);
+					switch(funct7){
+						case 0x00: ID_EX.ins_type = SRLI; break;
+						case 0x20: ID_EX.ins_type = SRAI; break;
+						default : break;
+					}
+					break;
+			}
+			break;
+		case 0x33:	
+			ID_EX.rd = (ID_EX.ins_code >> 7) & 31;
+			funct3 = (ID_EX.ins_code >> 12) & 7;
+			ID_EX.rs1 = (ID_EX.ins_code >> 15) & 31;
+			ID_EX.rs2 = (ID_EX.ins_code >> 20) & 31;
+			funct7 = (ID_EX.ins_code >> 25);
+			switch(funct3){
+				case 0:
+					switch(funct7){
+						case 0x00: ID_EX.ins_type = ADD; break;
+						case 0x20: ID_EX.ins_type = SUB; break;
+						default : break;
+					}
+					break;
+				case 1:
+					switch(funct7){
+						case 0: ID_EX.ins_type = SLL; break;
+						default : break;
+					}
+					break;
+				case 2:
+					switch(funct7){
+						case 0: ID_EX.ins_type = SLT; break;
+						default : break;
+					}
+					break;
+				case 3:
+					switch(funct7){
+						case 0: ID_EX.ins_type = SLTU; break;
+						default : break;
+					}
+					break;
+				case 4:
+					switch(funct7){
+						case 0: ID_EX.ins_type = XOR; break;
+						default : break;
+					}
+					break;
+				case 5:
+					switch(funct7){
+						case 0x00: ID_EX.ins_type = SRL; break;
+						case 0x20: ID_EX.ins_type = SRA; break;
+						default : break;
+					}
+					break;
+				case 6:
+					switch(funct7){
+						case 0: ID_EX.ins_type = OR; break;
+						default : break;
+					}
+					break;
+				case 7:
+					switch(funct7){
+						case 0: ID_EX.ins_type = AND; break;
+						default : break;
+					}
+					break;
+			}
+			break;
+		default : break;
+	}
+	ID_EX.rs1_value = reg[ID_EX.rs1];
+	ID_EX.rs2_value = reg[ID_EX.rs2];
+	switch(ID_EX.ins_type){
+		case JAL: pc = ID_EX.pc + ID_EX.imm; break;
+		case JALR: pc = (ID_EX.imm + ID_EX.rs1_value) & fro[1]; break;
+		case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
+			ID_EX.predictor = (pre[ID_EX.pc >> 2 & 0xFF] >> 1) & 1;
+			if(ID_EX.predictor) pc = ID_EX.pc + ID_EX.imm;
+			pre_tot++;
+			break;
+		default : break;
+	}
+	// puts("-----ID-End-----");
+	ID_busy = 0;
+	EX_busy = 1;
 }
-void print(){
-	if(opcode == 55) print_U();
-	else if(opcode == 23) print_U();
-	else if(opcode == 111) print_J();
-	else if(opcode == 103) print_I();
-	else if(opcode == 99) print_B();
-	else if(opcode == 3) print_I();
-	else if(opcode == 35) print_S();
-	else if(opcode == 19) print_I();
-	else if(opcode == 51) print_R();
-}
-int read_signed(int ad, int len){
-	int ans = 0;
-	for(int i = 0; i < len / 8; i++)
-		ans |= mem[ad + i] << (i * 8);
-	if(ans >> (len - 1))
-		ans |= fro[len - 1];
-	return ans;
-}
-int read_unsigned(int ad, int len){
-	unsigned int ans = 0;
-	for(int i = 0; i < len / 8; i++)
-		ans |= mem[ad + i] << (i * 8);
-	return ans;
+bool cmp(instruction_set ins, unsigned int rs1_value, unsigned int rs2_value){
+	switch(ins){
+		case BEQ: return rs1_value == rs2_value;
+		case BNE: return rs1_value != rs2_value;
+		case BLT: return ((int)rs1_value) < ((int)rs2_value);
+		case BGE: return ((int)rs1_value) >= ((int)rs2_value);
+		case BLTU: return rs1_value < rs2_value;
+		case BGEU: return rs1_value >= rs2_value;
+		default : break;
+	}
+	return 0;
 }
 void execute(){
-	// puts("---begin---");
-	// printf("pc === %08x\n", pc);
-	if(opcode == 55){
-		// puts("LUI");
-		reg[rd] = imm;
-		pc += 4;
-	}
-	else if(opcode == 23){
-		// puts("AUIPC");
-		pc += imm;
-		reg[rd] = pc;
-	}
-	else if(opcode == 111){
-		// puts("JAL");
-		if(rd) reg[rd] = pc + 4;
-		pc += imm;
-	}
-	else if(opcode == 103){
-		// puts("JALR");
-		if(rd) reg[rd] = pc + 4;
-		pc = (imm + reg[rs1]) & fro[1];
-	}
-	else if(opcode == 99){
-		if(funct3 == 0){
-			// puts("BEQ");
-			if(reg[rs1] == reg[rs2]) pc += imm;
-			else pc += 4;
-		}
-		else if(funct3 == 1){
-			// puts("BNE");
-			if(reg[rs1] != reg[rs2]) pc += imm;
-			else pc += 4;
-		}
-		else if(funct3 == 4){
-			// puts("BLT");
-			if(((int)reg[rs1]) < ((int)reg[rs2])) pc += imm;
-			else pc += 4;
-		}
-		else if(funct3 == 5){
-			// puts("BGE");
-			if(((int)reg[rs1]) >= ((int)reg[rs2])) pc += imm;
-			else pc += 4;
-		}
-		else if(funct3 == 6){
-			// puts("BLTU");
-			if(reg[rs1] < reg[rs2]) pc += imm;
-			else pc += 4;
-		}
-		else if(funct3 == 7){
-			// puts("BGEU");
-			if(reg[rs1] >= reg[rs2]) pc += imm;
-			else pc += 4;
-		}
-	}
-	else if(opcode == 3){
-		pc += 4;
-		if(funct3 == 0){
-			// puts("LB");
-			reg[rd] = read_signed(reg[rs1] + imm, 8);
-		}
-		else if(funct3 == 1){
-			// puts("LH");
-			reg[rd] = read_signed(reg[rs1] + imm, 16);
-		}
-		else if(funct3 == 2){
-			// puts("LW");
-			reg[rd] = read_unsigned(reg[rs1] + imm, 32);
-		}
-		else if(funct3 == 4){
-			// puts("LBU");
-			reg[rd] = read_unsigned(reg[rs1] + imm, 8);
-		}
-		else if(funct3 == 5){
-			// puts("LHU");
-			reg[rd] = read_unsigned(reg[rs1] + imm, 16);
-		}
-	}
-	else if(opcode == 35){
-		pc += 4;
-		if(funct3 == 0){
-			// puts("SB");
-			mem[reg[rs1] + imm] = reg[rs2] & 0xff;
-		}
-		else if(funct3 == 1){
-			// puts("SH");
-			for(int i = 0; i < 2; i++)
-				mem[reg[rs1] + imm + i] = (reg[rs2] >> (8 * i))& 0xff;
-		}
-		else if(funct3 == 2){
-			// puts("SW");
-			for(int i = 0; i < 4; i++)
-				mem[reg[rs1] + imm + i] = (reg[rs2] >> (8 * i))& 0xff;
-		}
-	}
-	else if(opcode == 19){
-		pc += 4;
-		if(funct3 == 0){
-			// puts("ADDI");
-			if(rd == 10 && rs1 == 0 && imm == 255){
-				flag = 1;
-				cout << (reg[10] & 255) << endl;
-			}
-			else reg[rd] = reg[rs1] + imm;
-		}
-		else if(funct3 == 2){
-			// puts("SLTI");
-			if(((int)reg[rs1]) < imm) reg[rd] = 1;
-			else reg[rd] = 0;
-		}
-		else if(funct3 == 3){
-			// puts("SLTIU");
-			if(reg[rs1] < ((unsigned int)imm)) reg[rd] = 1;
-			else reg[rd] = 0;
-		}
-		else if(funct3 == 4){
-			// puts("XORI");
-			reg[rd] = reg[rs1] ^ imm;
-		}
-		else if(funct3 == 6){
-			// puts("ORI");
-			reg[rd] = reg[rs1] | imm;
-		}
-		else if(funct3 == 7){
-			// puts("ANDI");
-			reg[rd] = reg[rs1] & imm;
-		}
-		else if(funct3 == 1){
-			// puts("SLLI");
-			reg[rd] = reg[rs1] << (imm & 31);
-		}
-		else if(funct3 == 5){
-			if((imm >> 5) == 0){
-				// puts("SRLI");
-				reg[rd] = reg[rs1] >> (imm & 31);
+	if(MEM_busy || (!EX_busy)) return ;
+	// puts("-----EX-Begin-----");
+	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[ID_EX.ins_type].c_str(), ID_EX.pc, ID_EX.rs1, ID_EX.rs1_value, ID_EX.rs2, ID_EX.rs2_value, ID_EX.rd, ID_EX.rd_value);
+	EX_MEM = ID_EX;
+	switch(EX_MEM.ins_type){
+		case LUI: EX_MEM.rd_value = EX_MEM.imm; break;
+		case AUIPC: EX_MEM.rd_value = EX_MEM.pc + EX_MEM.imm; break;
+		case JAL: case JALR: EX_MEM.rd_value = EX_MEM.pc + 4; break;
+		case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
+			if(cmp(EX_MEM.ins_type, EX_MEM.rs1_value, EX_MEM.rs2_value)){
+				if(EX_MEM.predictor) pre_right++;
+				else{pc = EX_MEM.pc + EX_MEM.imm; ID_busy = 0;}
+				pre[(EX_MEM.pc >> 2) & 0xFF] = min(pre[(EX_MEM.pc >> 2) & 0xFF] + 1, 3);
 			}
 			else{
-				// puts("SRAI");
-				reg[rd] = ((int)reg[rs1]) >> (imm & 31);
+				if(!EX_MEM.predictor) pre_right++;
+				else{pc = EX_MEM.pc + 4; ID_busy = 0;}
+				pre[(EX_MEM.pc >> 2) & 0xFF] = max(pre[(EX_MEM.pc >> 2) & 0xFF] - 1, 0);
 			}
-		}
+			break;
+		case LB: case LH: case LW: case LBU: case LHU: case SB: case SH: case SW:
+			EX_MEM.add = EX_MEM.rs1_value + EX_MEM.imm; break;
+		case ADDI: EX_MEM.rd_value = EX_MEM.rs1_value + EX_MEM.imm; break;
+		case SLTI: EX_MEM.rd_value = ((int)EX_MEM.rs1_value) < EX_MEM.imm; break;
+		case SLTIU: EX_MEM.rd_value = EX_MEM.rs1_value < ((unsigned int) EX_MEM.imm); break;
+		case XORI: EX_MEM.rd_value = EX_MEM.rs1_value ^ EX_MEM.imm; break;
+		case ORI: EX_MEM.rd_value = EX_MEM.rs1_value | EX_MEM.imm; break;
+		case ANDI: EX_MEM.rd_value = EX_MEM.rs1_value & EX_MEM.imm; break;
+		case SLLI: EX_MEM.rd_value = EX_MEM.rs1_value << (EX_MEM.imm & 31); break;
+		case SRLI: EX_MEM.rd_value = EX_MEM.rs1_value >> (EX_MEM.imm & 31); break;
+		case SRAI: EX_MEM.rd_value = ((int)EX_MEM.rs1_value) >> (EX_MEM.imm & 31); break;
+		case ADD: EX_MEM.rd_value = EX_MEM.rs1_value + EX_MEM.rs2_value; break;
+		case SUB: EX_MEM.rd_value = EX_MEM.rs1_value - EX_MEM.rs2_value; break;
+		case SLL: EX_MEM.rd_value = EX_MEM.rs1_value << (EX_MEM.rs2_value & 31); break;
+		case SLT: EX_MEM.rd_value = ((int)EX_MEM.rs1_value) < ((int)EX_MEM.rs2_value); break;
+		case SLTU: EX_MEM.rd_value = EX_MEM.rs1_value < EX_MEM.rs2_value; break;
+		case XOR: EX_MEM.rd_value = EX_MEM.rs1_value ^ EX_MEM.rs2_value; break;
+		case SRL: EX_MEM.rd_value = EX_MEM.rs1_value >> (EX_MEM.rs2_value & 31); break;
+		case SRA: EX_MEM.rd_value = ((int)EX_MEM.rs1_value) >> (EX_MEM.rs2_value & 31); break;
+		case OR: EX_MEM.rd_value = EX_MEM.rs1_value | EX_MEM.rs2_value; break;
+		case AND: EX_MEM.rd_value = EX_MEM.rs1_value & EX_MEM.rs2_value; break;
 	}
-	else if(opcode == 51){
-		pc += 4;
-		if(funct3 == 0){
-			if(funct7 == 0){
-				// puts("ADD");
-				reg[rd] = reg[rs1] + reg[rs2];
-			}
-			else{
-				// puts("SUB");
-				reg[rd] = reg[rs1] - reg[rs2];
-			}
-		}
-		else if(funct3 == 1){
-			// puts("SLL");
-			reg[rd] = reg[rs1] << (reg[rs2] & 31);
-		}
-		else if(funct3 == 2){
-			// puts("SLT");
-			if(((int)reg[rs1]) < ((int)reg[rs2])) reg[rd] = 1;
-			else reg[rd] = 0;
-		}
-		else if(funct3 == 3){
-			// puts("SLTU");
-			if(reg[rs1] < reg[rs2]) reg[rd] = 1;
-			else reg[rd] = 0;
-		}
-		else if(funct3 == 4){
-			// puts("XOR");
-			reg[rd] = reg[rs1] ^ reg[rs2];
-		}
-		else if(funct3 == 5){
-			if(funct7 == 0){
-				// puts("SRL");
-				reg[rd] = reg[rs1] >> (reg[rs2] & 31);
-			}
-			else{
-				// puts("SRA");
-				reg[rd] = ((int)reg[rs1]) >> (reg[rs2] & 31);
-			}
-		}
-		else if(funct3 == 6){
-			// puts("OR");
-			reg[rd] = reg[rs1] | reg[rs2];
-		}
-		else if(funct3 == 7){
-			// puts("AND");
-			reg[rd] = reg[rs1] & reg[rs2];
-		}
-	}
-	// printf("pc === %08x\n", pc);
-	// print();
-	// puts("---END---");
+	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[ID_EX.ins_type].c_str(), ID_EX.pc, ID_EX.rs1, ID_EX.rs1_value, ID_EX.rs2, ID_EX.rs2_value, ID_EX.rd, ID_EX.rd_value);
+	// puts("-----EX-End-----");
+	EX_busy = 0;
+	MEM_busy = 1;
+	MEM_times = 0;
 }
-void memory_access(){}
-void write_back(){}
-void run(){
-	instruction_fetch();
-	instruction_decode();
-	execute();
-	memory_access();
-	write_back();
+void memory_access(){
+	if(WB_busy || (!MEM_busy)) return ;
+	// puts("-----MEM-Begin-----");
+	// printf("MEM_times == %d\n", MEM_times);
+	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[EX_MEM.ins_type].c_str(), EX_MEM.pc, EX_MEM.rs1, EX_MEM.rs1_value, EX_MEM.rs2, EX_MEM.rs2_value, EX_MEM.rd, EX_MEM.rd_value);
+	MEM_WB = EX_MEM;
+	switch(MEM_WB.ins_type){
+		case LB: case LH: case LW: case LBU: case LHU: case SB: case SH: case SW:
+			if(MEM_times < 2) MEM_times++;
+			else{
+				switch(MEM_WB.ins_type){
+					case LB: MEM_WB.rd_value = (char)(mem[MEM_WB.add]); break;
+					case LH: MEM_WB.rd_value = (short)(mem[MEM_WB.add] | (mem[MEM_WB.add + 1] << 8)); break;
+					case LW: MEM_WB.rd_value = mem[MEM_WB.add] | (mem[MEM_WB.add + 1] << 8) | 
+											   (mem[MEM_WB.add + 2] << 16) | (mem[MEM_WB.add + 3] << 24); 
+							 break;
+					case LBU: MEM_WB.rd_value = mem[MEM_WB.add]; break;
+					case LHU: MEM_WB.rd_value = mem[MEM_WB.add] | (mem[MEM_WB.add + 1] << 8); break;
+					case SB: mem[MEM_WB.add] = MEM_WB.rs2_value & 0xFF;
+							 break;
+					case SH: mem[MEM_WB.add] = MEM_WB.rs2_value & 0xFF;
+							 mem[MEM_WB.add + 1] = (MEM_WB.rs2_value >> 8) & 0xFF;
+							 break;
+					case SW: mem[MEM_WB.add] = MEM_WB.rs2_value & 0xFF;
+							 mem[MEM_WB.add + 1] = (MEM_WB.rs2_value >> 8) & 0xFF;
+							 mem[MEM_WB.add + 2] = (MEM_WB.rs2_value >> 16) & 0xFF;
+							 mem[MEM_WB.add + 3] = (MEM_WB.rs2_value >> 24) & 0xFF;
+							 break;
+					default : break;
+				}
+				MEM_busy = 0;
+				WB_busy = 1;
+			}
+			break;
+		default:
+			MEM_busy = 0;
+			WB_busy = 1;
+			break;
+	}
+	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[MEM_WB.ins_type].c_str(), MEM_WB.pc, MEM_WB.rs1, MEM_WB.rs1_value, MEM_WB.rs2, MEM_WB.rs2_value, MEM_WB.rd, MEM_WB.rd_value);
+	if(EX_busy){
+		if(ID_EX.rs1 && ID_EX.rs1 == MEM_WB.rd) ID_EX.rs1_value = MEM_WB.rd_value;
+		if(ID_EX.rs2 && ID_EX.rs2 == MEM_WB.rd) ID_EX.rs2_value = MEM_WB.rd_value;
+	}
+	// puts("-----MEM-End-----");
+}
+void write_back(){
+	if(!WB_busy) return ;
+	// puts("-----WB-Begin-----");
+	// printf("%s  pc = %08x  reg[%d] = %d  reg[%d] = %d  reg[%d] = %d\n", ss[MEM_WB.ins_type].c_str(), MEM_WB.pc, MEM_WB.rs1, MEM_WB.rs1_value, MEM_WB.rs2, MEM_WB.rs2_value, MEM_WB.rd, MEM_WB.rd_value);
+	if(EX_busy){
+		if(ID_EX.rs1 && ID_EX.rs1 == MEM_WB.rd) ID_EX.rs1_value = MEM_WB.rd_value;
+		if(ID_EX.rs2 && ID_EX.rs2 == MEM_WB.rd) ID_EX.rs2_value = MEM_WB.rd_value;
+	}
+	switch(MEM_WB.ins_type){
+		case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU: case SB: case SH: case SW:
+			break;
+		default:
+			if(MEM_WB.rd) reg[MEM_WB.rd] = MEM_WB.rd_value;
+			break;
+	}
+	// puts("-----WB-End-----");
+	WB_busy = 0;
 }
 void work(){
 	pc = 0;
-	while(!flag)
-		run();
+	while(IF_ID.ins_code != 0xFF00513 || WB_busy || MEM_busy || EX_busy){
+		// puts("-----Pipe-Begin-----");
+		write_back();
+		memory_access();
+		execute();
+		instruction_decode();
+		instruction_fetch();
+		// puts("-----Pipe-End-----");
+	}
+	cout << (reg[10] & 255) << endl;
+	//printf("%0.8f\n", (double)pre_right/pre_tot);
 }
 int main(){
-	// freopen("tak.data", "r", stdin);
-	// freopen("1.out", "w", stdout);
+	//freopen("b.data", "r", stdin);
+	//freopen("2.out", "w", stdout);
 	init();
 	work();
 	return 0;
